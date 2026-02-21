@@ -200,9 +200,9 @@ func (g *GUIServer) handleChartData(ctx *fasthttp.RequestCtx, view string) {
 			}
 		case rpsView:
 			if rd != nil {
-				values = append(values, rd.RPS)
+				values = append(values, rd.RPS, rd.AvgRPS, rd.MaxRPS)
 			} else {
-				values = append(values, nil)
+				values = append(values, nil, nil, nil)
 			}
 		case codeView:
 			if rd != nil {
@@ -220,6 +220,8 @@ func (g *GUIServer) handleChartData(ctx *fasthttp.RequestCtx, view string) {
 	} else {
 		switch view {
 		case latencyView:
+			values = append(values, nil, nil, nil)
+		case rpsView:
 			values = append(values, nil, nil, nil)
 		default:
 			values = append(values, nil)
@@ -303,8 +305,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .prog-bg{background:var(--bg2);border-radius:100px;height:5px;overflow:hidden}
 .prog-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:100px;transition:width .4s ease;width:0%}
 
-/* Stats */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+/* Stats – 2 baris: RPS (3 col) | Latency (3 col) */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px}
 @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
 .stat{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;text-align:center;transition:all .3s;position:relative;overflow:hidden}
 .stat::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at center,var(--accent-glow),transparent 70%);opacity:0;transition:opacity .3s}
@@ -388,7 +390,9 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   </div>
 
   <div class="stats">
-    <div class="stat" id="sRps"><div class="slbl">Requests / sec</div><div class="sval a" id="vRps">—</div><div class="sunit">RPS</div></div>
+    <div class="stat" id="sRps"><div class="slbl">Last RPS</div><div class="sval a" id="vRps">—</div><div class="sunit">req/sec (last)</div></div>
+    <div class="stat" id="sAvgRps"><div class="slbl">Average RPS</div><div class="sval a" id="vAvgRps">—</div><div class="sunit">req/sec (avg)</div></div>
+    <div class="stat" id="sMaxRps"><div class="slbl">Max RPS</div><div class="sval a" id="vMaxRps">—</div><div class="sunit">req/sec (peak)</div></div>
     <div class="stat" id="sLat"><div class="slbl">Avg Latency</div><div class="sval g" id="vLat">—</div><div class="sunit">ms</div></div>
     <div class="stat" id="sMin"><div class="slbl">Min Latency</div><div class="sval" id="vMin">—</div><div class="sunit">ms</div></div>
     <div class="stat" id="sMax"><div class="slbl">Max Latency</div><div class="sval y" id="vMax">—</div><div class="sunit">ms</div></div>
@@ -602,7 +606,7 @@ function setRunning(r){
   document.getElementById('hstxt').textContent = r ? 'Running…' : 'Idle';
   document.getElementById('prog').className   = 'prog'+(r?' show':'');
   if(!r) document.getElementById('pfill').style.width = '0%';
-  ['sRps','sLat','sMin','sMax'].forEach(id=>
+  ['sRps','sAvgRps','sMaxRps','sLat','sMin','sMax'].forEach(id=>
     document.getElementById(id).classList.toggle('on',r));
 }
 
@@ -648,8 +652,11 @@ async function fetchView(view){
       setText('vMin', mn  !=null ? mn.toFixed(2)   : '—');
       setText('vMax', mx  !=null ? mx.toFixed(2)   : '—');
     } else if(view==='rps'){
-      updateRps(t, v[0]);
-      setText('vRps', v[0]!=null ? Math.round(v[0]) : '—');
+      const [cur, avg, mx] = [v[0], v[1], v[2]];
+      updateRps(t, cur);
+      setText('vRps',    cur!=null ? Math.round(cur) : '—');
+      setText('vAvgRps', avg!=null ? Math.round(avg) : '—');
+      setText('vMaxRps', mx !=null ? Math.round(mx)  : '—');
     } else if(view==='code'){
       updateCode(t, v[0]);
     } else if(view==='concurrency'){
@@ -686,7 +693,7 @@ function resetCharts(){
   EC.cod.setOption({ xAxis:{data:[]}, series:[{name:'200',data:[]}] }, false);
   EC.con.setOption({ xAxis:{data:[]}, series:[{name:'Concurrency',data:[]}] }, false);
 
-  ['vRps','vLat','vMin','vMax'].forEach(id=>setText(id,'—'));
+  ['vRps','vAvgRps','vMaxRps','vLat','vMin','vMax'].forEach(id=>setText(id,'—'));
 }
 
 function setText(id, txt){ document.getElementById(id).textContent = txt; }
